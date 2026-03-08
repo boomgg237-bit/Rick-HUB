@@ -1,6 +1,6 @@
 local scriptList = {
     [155615604] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Prisonloader.lua", -- Prison Life
-  
+    [127794225497302] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Abyss.lua", -- Abyss
 }
 local function Notify(title, content)
     pcall(function()

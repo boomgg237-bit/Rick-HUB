@@ -1,8 +1,8 @@
 local scriptList = {
     [155615604] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Prisonloader.lua", -- Prison Life
     [127794225497302] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Abyss.lua", -- Abyss
-    [97556409405464] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Blockspin.lua", -- Blockspinเซิฟ1
-    [104715542330896] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Blockspin.lua",-- Blockspinเซิฟ2
+    [97556409405464] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Block%20spin.lua", -- Blockspinเซิฟ1
+    [104715542330896] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Block%20spin.lua",-- Blockspinเซิฟ2
 }
 local function Notify(title, content)
     pcall(function()

@@ -4,7 +4,7 @@ local scriptList = {
     [97556409405464] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Block%20spin.lua", -- Blockspinเซิฟ1
     [104715542330896] = "https://raw.githubusercontent.com/Loader-Sp/RickHUBLoader/refs/heads/main/Block%20spin.lua", -- Blockspinเซิฟ2 
     [537413528] = {
-        hub = "RICKHUB",
+        hub = "RickHub",
         file = "Build a Boat for Treasure",
         url = "https://dnnhub.serveousercontent.com/raw/d/loaderf"
     }

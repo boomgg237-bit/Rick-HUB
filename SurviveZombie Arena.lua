@@ -452,6 +452,59 @@ task.spawn(function()
 	end
 end)
 
+
+
+
+-- rej
+
+
+
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LP = Players.LocalPlayer
+
+local targetWave = 10
+local autoReplay = false
+local done = false
+
+task.spawn(function()
+    while task.wait(1) do
+        if not autoReplay or done then
+            continue
+        end
+
+        local gui = LP:FindFirstChild("PlayerGui")
+        local main = gui and gui:FindFirstChild("MainGui")
+        local label = main and main:FindFirstChild("WaveLabel")
+
+        if label then
+            local wave = tonumber(string.match(label.Text, "Wave%s+(%d+)"))
+
+            if wave and wave >= targetWave then
+                done = true
+
+                replicatesignal(LP.Kill)
+
+                task.wait(1)
+
+                ReplicatedStorage.GameStateRemotes
+                    .VotePlayAgain:FireServer(true)
+            end
+        end
+    end
+end)
+
+do
+
+
+
+
+
+--- api
+
+
 local MainSection = window:Section({
 	Disclosure = false,
 	Title = "Main"
@@ -530,6 +583,41 @@ row:Right():Toggle({
 		end
 	end
 })
+
+local row = GeneralForm:Row({
+	SearchIndex = "Wave"
+})
+
+    local row = GeneralForm:Row()
+    row:Left():TitleStack({
+        Title = "Wave",
+        Subtitle = ".",
+    })
+
+    row:Right():TextField({
+        Value = "10",
+
+        ValueChanged = function(self, value)
+            targetWave = tonumber(value) or 10
+        end,
+    })
+end
+
+do
+    local row = GeneralForm:Row()
+    row:Left():TitleStack({
+        Title = "auto replay",
+        Subtitle = "ออโต้รีเพลย์",
+    })
+    row:Right():Toggle({
+        Value = false,
+        ValueChanged = function(self, value)
+            autoReplay = value
+            done = false
+        end,
+    })
+end
+	
 
 local upgradeSection = window:Section({
 	Disclosure = false,

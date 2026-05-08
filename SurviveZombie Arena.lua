@@ -68,7 +68,7 @@ local ImageButton = Create("ImageButton", {
     Parent = Frame,
     BackgroundTransparency = 1,
     Size = UDim2.new(0, 32, 0, 32),
-    Image = "rbxassetid://117841911118491"
+    Image = "rbxassetid://124339558110081"
 })
 
 ImageButton.MouseButton1Click:Connect(function()

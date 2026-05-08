@@ -593,18 +593,20 @@ local row = GeneralForm:Row({
         Title = "Wave",
         Subtitle = ".",
     })
-
     row:Right():TextField({
         Value = "10",
-
         ValueChanged = function(self, value)
             targetWave = tonumber(value) or 10
         end,
     })
 end
 
-do
-    local row = GeneralForm:Row()
+
+local row = GeneralForm:Row()
+local row = GeneralForm:Row({
+	SearchIndex = "auto replay"
+})
+
     row:Left():TitleStack({
         Title = "auto replay",
         Subtitle = "ออโต้รีเพลย์",

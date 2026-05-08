@@ -23,7 +23,7 @@ if not status then return end
 
 local app = cascade.New({
     WindowPill = true,
-    Theme = cascade.Themes.Dark
+    Theme = cascade.Themes.Purple
 })
 
 local window = app:Window({

@@ -7,355 +7,575 @@ local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 local PlayerGui = player:WaitForChild("PlayerGui")
 
-local function Create(class, props)
-    local obj = Instance.new(class)
-    for i, v in pairs(props) do
-        obj[i] = v
-    end
-    return obj
+local function importRelease(owner, repo, version, file)
+	local tag = (version == "latest" and "latest/download" or "download/" .. version)
+	local url = ("https://github.com/%s/%s/releases/%s/%s"):format(owner, repo, tag, file)
+
+	return loadstring(game:HttpGet(url))()
 end
 
-local status, cascade = pcall(function()
-    return loadstring(game:HttpGet("https://raw.githubusercontent.com/Yenixs/Map/refs/heads/main/dist.luau"))()
-end)
+local cascade = importRelease(
+	"biggaboy212",
+	"Cascade",
+	"latest",
+	"dist.luau"
+)
 
-if not status then return end
+local function Create(class, props)
+	local object = Instance.new(class)
+
+	for index, value in next, props do
+		object[index] = value
+	end
+
+	return object
+end
 
 local app = cascade.New({
-    WindowPill = true,
-    Theme = cascade.Themes.Purple
+	WindowPill = true,
+	Theme = cascade.Themes.Dark,
+	Accent = cascade.Accents.Purple
 })
 
 local window = app:Window({
-    Title = "Dipper HUB | Survive Zombie Arena",
-    Subtitle = "Made by 009.exe ",
-    Size = UserInputService.TouchEnabled and UDim2.fromOffset(550, 325) or UDim2.fromOffset(850, 530)
+	Title = "Dipper HUB | Survive Zombie Arena",
+	Subtitle = "Made by 009.exe",
+
+	Size = UserInputService.TouchEnabled
+		and UDim2.fromOffset(550, 325)
+		or UDim2.fromOffset(850, 530)
 })
 
 local AutoKill = false
+local AutoUpgradeHealth = false
+local AutoUpgradeWeapon = false
+
 local SingleTargetMode = false
 
+local currentTarget = nil
+local lastTpPos = nil
+local flyConnection = nil
+
+local zombiesContainer = Workspace:WaitForChild("Zombies_Local")
+
+local allZombies = {}
+local zombieCount = 0
+
 local minimizeKeybind = Enum.KeyCode.LeftAlt
+
 UserInputService.InputEnded:Connect(function(input, processed)
-    if input.KeyCode == minimizeKeybind and not processed then
-        window.Minimized = not window.Minimized
-    end
+	if input.KeyCode == minimizeKeybind and not processed then
+		window.Minimized = not window.Minimized
+	end
 end)
 
 if PlayerGui:FindFirstChild("Enbord") then
-    PlayerGui.Enbord:Destroy()
+	PlayerGui.Enbord:Destroy()
 end
 
 local ScreenGui = Create("ScreenGui", {
-    Name = "Enbord",
-    Parent = PlayerGui,
-    ResetOnSpawn = false
+	Name = "Enbord",
+	Parent = PlayerGui,
+	ResetOnSpawn = false
 })
 
-local Frame = Create("Frame", {
-    Parent = ScreenGui,
-    BackgroundColor3 = Color3.fromRGB(35, 35, 35),
-    Position = UDim2.new(0.073, 0, 0.232, 0),
-    Size = UDim2.new(0, 32, 0, 32)
+local ToggleFrame = Create("Frame", {
+	Parent = ScreenGui,
+
+	Size = UDim2.fromOffset(50, 50),
+	Position = UDim2.new(0.08, 0, 0.25, 0),
+
+	BackgroundColor3 = Color3.fromRGB(35, 35, 35),
+	BorderSizePixel = 0,
+
+	Active = true
 })
 
 Create("UICorner", {
-    CornerRadius = UDim.new(1, 100),
-    Parent = Frame
+	Parent = ToggleFrame,
+	CornerRadius = UDim.new(1, 0)
 })
 
-local ImageButton = Create("ImageButton", {
-    Parent = Frame,
-    BackgroundTransparency = 1,
-    Size = UDim2.new(0, 32, 0, 32),
-    Image = "rbxassetid://124339558110081"
+Create("UIStroke", {
+	Parent = ToggleFrame,
+
+	Color = Color3.fromRGB(147, 51, 234),
+	Thickness = 2
 })
 
-ImageButton.MouseButton1Click:Connect(function()
-    window.Minimized = not window.Minimized
+local ToggleButton = Create("ImageButton", {
+	Parent = ToggleFrame,
+
+	BackgroundTransparency = 1,
+
+	Size = UDim2.new(1, -8, 1, -8),
+	Position = UDim2.new(0, 4, 0, 4),
+
+	Image = "rbxassetid://124339558110081"
+})
+
+Create("UICorner", {
+	Parent = ToggleButton,
+	CornerRadius = UDim.new(1, 0)
+})
+
+ToggleButton.MouseButton1Click:Connect(function()
+	window.Minimized = not window.Minimized
 end)
 
-local zombiesContainer = Workspace:WaitForChild("Zombies_Local")
-local flyConnection = nil
-local lastTpPos = nil
-local currentTarget = nil
+local dragging = false
+local dragStart
+local startPos
 
+ToggleFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1
+	or input.UserInputType == Enum.UserInputType.Touch then
 
-local allZombies = {}  -- { [zombie] = true }
-local zombieCount = 0
+		dragging = true
+		dragStart = input.Position
+		startPos = ToggleFrame.Position
 
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				dragging = false
+			end
+		end)
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if dragging and (
+		input.UserInputType == Enum.UserInputType.MouseMovement
+		or input.UserInputType == Enum.UserInputType.Touch
+	) then
+
+		local delta = input.Position - dragStart
+
+		ToggleFrame.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+end)
 
 local function loadAllZombies()
-    for _, z in ipairs(zombiesContainer:GetChildren()) do
-        if z.Name:match("^Zombie_%d+$") and not allZombies[z] then
-            allZombies[z] = true
-            zombieCount = zombieCount + 1
-        end
-    end
+	for _, zombie in next, zombiesContainer:GetChildren() do
+		if zombie.Name:match("^Zombie_%d+$") and not allZombies[zombie] then
+			allZombies[zombie] = true
+			zombieCount += 1
+		end
+	end
 end
 
 loadAllZombies()
 
-zombiesContainer.ChildAdded:Connect(function(z)
-    if z.Name:match("^Zombie_%d+$") and not allZombies[z] then
-        allZombies[z] = true
-        zombieCount = zombieCount + 1
-    end
+zombiesContainer.ChildAdded:Connect(function(zombie)
+	if zombie.Name:match("^Zombie_%d+$") and not allZombies[zombie] then
+		allZombies[zombie] = true
+		zombieCount += 1
+	end
 end)
 
-zombiesContainer.ChildRemoved:Connect(function(z)
-    if allZombies[z] then
-        allZombies[z] = nil
-        zombieCount = zombieCount - 1
-        if currentTarget == z then
-            currentTarget = nil
-        end
-    end
+zombiesContainer.ChildRemoved:Connect(function(zombie)
+	if allZombies[zombie] then
+		allZombies[zombie] = nil
+		zombieCount -= 1
+
+		if currentTarget == zombie then
+			currentTarget = nil
+		end
+	end
 end)
 
 local function getNearestZombie()
-    local character = player.Character
-    if not character then return nil end
-    local myHrp = character:FindFirstChild("HumanoidRootPart")
-    if not myHrp then return nil end
-    
-    local nearest = nil
-    local nearestDist = math.huge
-    local myPos = myHrp.Position
-    
-    for z in pairs(allZombies) do
-        if z and z.Parent then
-            local hrp = z:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local dist = (myPos - hrp.Position).Magnitude
-                if dist < nearestDist then
-                    nearestDist = dist
-                    nearest = z
-                end
-            end
-        end
-    end
-    
-    return nearest
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	local myHrp = character:FindFirstChild("HumanoidRootPart")
+	if not myHrp then
+		return
+	end
+
+	local nearest = nil
+	local nearestDistance = math.huge
+
+	for zombie in next, allZombies do
+		if zombie and zombie.Parent then
+			local hrp = zombie:FindFirstChild("HumanoidRootPart")
+
+			if hrp then
+				local distance = (myHrp.Position - hrp.Position).Magnitude
+
+				if distance < nearestDistance then
+					nearestDistance = distance
+					nearest = zombie
+				end
+			end
+		end
+	end
+
+	return nearest
 end
 
 local function getNextTarget()
-    if currentTarget and currentTarget.Parent and allZombies[currentTarget] then
-        return currentTarget
-    end
-    return getNearestZombie()
+	if currentTarget and currentTarget.Parent and allZombies[currentTarget] then
+		return currentTarget
+	end
+
+	return getNearestZombie()
 end
 
-
 local function getTpPosition(zombie)
-    if not zombie then return lastTpPos end
-    local hrp = zombie:FindFirstChild("HumanoidRootPart")
-    if hrp then
-        return hrp.Position + Vector3.new(0, 30, 0)
-    end
-    return lastTpPos
+	if not zombie then
+		return lastTpPos
+	end
+
+	local hrp = zombie:FindFirstChild("HumanoidRootPart")
+
+	if hrp then
+		return hrp.Position + Vector3.new(0, 30, 0)
+	end
+
+	return lastTpPos
 end
 
 local function startFlying()
-    if flyConnection then return end
-    flyConnection = RunService.Heartbeat:Connect(function()
-        if not AutoKill then return end
-        local character = player.Character
-        if not character then return end
-        local hrp = character:FindFirstChild("HumanoidRootPart")
-        if not hrp then return end
-        hrp.Velocity = Vector3.new(0, 0, 0)
-        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-    end)
+	if flyConnection then
+		return
+	end
+
+	flyConnection = RunService.Heartbeat:Connect(function()
+		if not AutoKill then
+			return
+		end
+
+		local character = player.Character
+		if not character then
+			return
+		end
+
+		local hrp = character:FindFirstChild("HumanoidRootPart")
+		if not hrp then
+			return
+		end
+
+		hrp.Velocity = Vector3.zero
+		hrp.AssemblyLinearVelocity = Vector3.zero
+		hrp.AssemblyAngularVelocity = Vector3.zero
+	end)
 end
 
 local function stopFlying()
-    if flyConnection then
-        flyConnection:Disconnect()
-        flyConnection = nil
-    end
+	if flyConnection then
+		flyConnection:Disconnect()
+		flyConnection = nil
+	end
 end
 
-
 task.spawn(function()
-    while true do
-        if AutoKill then
-            if zombieCount >= 30 then
-                if not SingleTargetMode then
-                    SingleTargetMode = true
-                    currentTarget = nil
-                end
-            else
-                if SingleTargetMode then
-                    SingleTargetMode = false
-                    currentTarget = nil
-                end
-            end
-        end
-        task.wait(0.5)
-    end
+	while true do
+		if AutoKill then
+			if zombieCount >= 30 then
+				if not SingleTargetMode then
+					SingleTargetMode = true
+					currentTarget = nil
+				end
+			else
+				if SingleTargetMode then
+					SingleTargetMode = false
+					currentTarget = nil
+				end
+			end
+		end
+
+		task.wait(0.5)
+	end
 end)
 
-
 task.spawn(function()
-    while true do
-        if AutoKill then
-            local character = player.Character
-            if character then
-                local myHrp = character:FindFirstChild("HumanoidRootPart")
-                if myHrp then
-                    local targetZombie = nil
-                    if SingleTargetMode then
-                        currentTarget = getNextTarget()
-                        targetZombie = currentTarget
-                    else
-                        targetZombie = getNearestZombie()
-                    end
-                    local tpPos = getTpPosition(targetZombie)
-                    if tpPos then
-                        myHrp.CFrame = CFrame.new(tpPos)
-                        lastTpPos = tpPos
-                    end
-                end
-            end
-        end
-        task.wait(0.01)
-    end
+	while true do
+		if AutoKill then
+			local character = player.Character
+
+			if character then
+				local myHrp = character:FindFirstChild("HumanoidRootPart")
+
+				if myHrp then
+					local targetZombie
+
+					if SingleTargetMode then
+						currentTarget = getNextTarget()
+						targetZombie = currentTarget
+					else
+						targetZombie = getNearestZombie()
+					end
+
+					local tpPos = getTpPosition(targetZombie)
+
+					if tpPos then
+						myHrp.CFrame = CFrame.new(tpPos)
+						lastTpPos = tpPos
+					end
+				end
+			end
+		end
+
+		task.wait(0.01)
+	end
 end)
+
 local function checkAndFireRemote(weaponName, zombieNum, position)
-    local gunRemotes = ReplicatedStorage:FindFirstChild("GunRemotes")
-    if not gunRemotes then 
-        return false
-    end
-    
-    local gunRemote = gunRemotes:FindFirstChild("GunHit")
-    if not gunRemote then 
-        return false
-    end
-    
-    local success, err = pcall(function()
-        gunRemote:FireServer(weaponName, zombieNum, position)
-    end)
-    
-    if not success then
-        pcall(function()
-            gunRemote:FireServer(zombieNum, position)
-        end)
-    end
-    
-    return true
-end
+	local gunRemotes = ReplicatedStorage:FindFirstChild("GunRemotes")
+	if not gunRemotes then
+		return
+	end
 
+	local gunRemote = gunRemotes:FindFirstChild("GunHit")
+	if not gunRemote then
+		return
+	end
+
+	pcall(function()
+		gunRemote:FireServer(weaponName, zombieNum, position)
+	end)
+end
 
 RunService.RenderStepped:Connect(function()
-    if not AutoKill then
-        stopFlying()
-        return
-    end
-    
-    startFlying()
-    
-    local gunRemotes = ReplicatedStorage:FindFirstChild("GunRemotes")
-    if not gunRemotes then return end
-    
-    local gunRemote = gunRemotes:FindFirstChild("GunHit")
-    if not gunRemote then return end
-    
-    local character = player.Character
-    if not character then return end
-    
-    local weapon = character:FindFirstChildWhichIsA("Tool")
-    if not weapon then
-        local backpack = player:FindFirstChild("Backpack")
-        local anyGun = backpack and backpack:FindFirstChildWhichIsA("Tool")
-        if anyGun then
-            anyGun.Parent = character
-            task.wait(0.01)
-            weapon = anyGun
-        end
-    end
-    
-    if not weapon then return end
-    
-    if SingleTargetMode then
-        
-        if currentTarget and currentTarget.Parent then
-            local hrp = currentTarget:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                local num = tonumber(currentTarget.Name:match("%d+"))
-                if num then
-                    checkAndFireRemote(weapon.Name, num, hrp.Position)
-                    checkAndFireRemote(weapon.Name, num, hrp.Position)
-                    checkAndFireRemote(weapon.Name, num, hrp.Position)
-                end
-            end
-        end
-    else
-        for zombie in pairs(allZombies) do
-            if zombie and zombie.Parent then
-                local hrp = zombie:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    local num = tonumber(zombie.Name:match("%d+"))
-                    if num then
-                        checkAndFireRemote(weapon.Name, num, hrp.Position)
-                    end
-                end
-            end
-        end
-    end
+	if not AutoKill then
+		stopFlying()
+		return
+	end
+
+	startFlying()
+
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	local weapon = character:FindFirstChildWhichIsA("Tool")
+
+	if not weapon then
+		local backpack = player:FindFirstChild("Backpack")
+		local anyGun = backpack and backpack:FindFirstChildWhichIsA("Tool")
+
+		if anyGun then
+			anyGun.Parent = character
+			task.wait()
+			weapon = anyGun
+		end
+	end
+
+	if not weapon then
+		return
+	end
+
+	local weaponName = weapon.Name
+
+	if SingleTargetMode then
+		local shotCount = 0
+
+		for zombie in next, allZombies do
+			if not AutoKill then
+				break
+			end
+
+			if shotCount >= 10 then
+				break
+			end
+
+			if zombie and zombie.Parent then
+				local hrp = zombie:FindFirstChild("HumanoidRootPart")
+
+				if hrp then
+					local num = tonumber(zombie.Name:match("%d+"))
+
+					if num then
+						shotCount += 1
+
+						checkAndFireRemote(
+							weaponName,
+							num,
+							hrp.Position
+						)
+					end
+				end
+			end
+		end
+	else
+		for zombie in next, allZombies do
+			if not AutoKill then
+				break
+			end
+
+			if zombie and zombie.Parent then
+				local hrp = zombie:FindFirstChild("HumanoidRootPart")
+
+				if hrp then
+					local num = tonumber(zombie.Name:match("%d+"))
+
+					if num then
+						checkAndFireRemote(
+							weaponName,
+							num,
+							hrp.Position
+						)
+					end
+				end
+			end
+		end
+	end
 end)
-
--- UI
-local MainSection = window:Section({ Disclosure = false, Title = "Main" })
-local GeneralTab = MainSection:Tab({
-    Selected = true,
-    Title = "Auto Kill",
-    Icon = cascade.Symbols.sword
-})
-
-local GeneralForm = GeneralTab:PageSection({ Title = "Auto Farm Zombie" }):Form()
-
-
-local infoRow = GeneralForm:Row({ SearchIndex = "Info" })
-infoRow:Left():TitleStack({
-    Title = "Zombies in Folder",
-    Subtitle = "จำนวนซอมบี้ทั้งหมดในโฟลเดอร์"
-})
-local countLabel = infoRow:Right():Label({ Text = "0" })
-
-local modeRow = GeneralForm:Row({ SearchIndex = "Mode" })
-modeRow:Left():TitleStack({
-    Title = "Current Mode",
-    Subtitle = "โหมดการทำงานปัจจุบัน"
-})
-local modeLabel = modeRow:Right():Label({ Text = "ปกติ" })
 
 task.spawn(function()
-    while true do
-        task.wait(0.1)
-        countLabel.Text = tostring(zombieCount)
-        if SingleTargetMode then
-            modeLabel.Text = "ยิงทีละตัวกัน lag"
-        else
-            modeLabel.Text = "ปกติ"
-        end
-    end
+	while task.wait(0.1) do
+		if AutoUpgradeHealth then
+			local remotes = ReplicatedStorage:FindFirstChild("UpgradeRemotes")
+
+			if remotes and remotes:FindFirstChild("PurchaseHealthUpgrade") then
+				remotes.PurchaseHealthUpgrade:FireServer()
+			end
+		end
+
+		if AutoUpgradeWeapon then
+			local remotes = ReplicatedStorage:FindFirstChild("UpgradeRemotes")
+
+			if remotes and remotes:FindFirstChild("PurchaseWeaponUpgrade") then
+				remotes.PurchaseWeaponUpgrade:FireServer()
+			end
+		end
+	end
 end)
 
-local row = GeneralForm:Row({ SearchIndex = "Auto Kill" })
-row:Left():TitleStack({
-    Title = "Auto Kill Zombie Op 😎",
-    Subtitle = "ออโต้ฆ่าซอมบี้"
+local MainSection = window:Section({
+	Disclosure = false,
+	Title = "Main"
 })
+
+local GeneralTab = MainSection:Tab({
+	Selected = true,
+	Title = "General",
+	Icon = cascade.Symbols.sword
+})
+
+local GeneralForm = GeneralTab:PageSection({
+	Title = "Auto Farm Zombie"
+}):Form()
+
+local infoRow = GeneralForm:Row({
+	SearchIndex = "Info"
+})
+
+infoRow:Left():TitleStack({
+	Title = "Zombies in Folder",
+	Subtitle = "จำนวนซอมบี้ทั้งหมด"
+})
+
+local countLabel = infoRow:Right():Label({
+	Text = "0"
+})
+
+local modeRow = GeneralForm:Row({
+	SearchIndex = "Mode"
+})
+
+modeRow:Left():TitleStack({
+	Title = "Current Mode",
+	Subtitle = "โหมดปัจจุบัน"
+})
+
+local modeLabel = modeRow:Right():Label({
+	Text = "ปกติ"
+})
+
+task.spawn(function()
+	while true do
+		task.wait(0.1)
+
+		countLabel.Text = tostring(zombieCount)
+
+		if SingleTargetMode then
+			modeLabel.Text = "ยิงทีละ 10 ตัวกัน lag"
+		else
+			modeLabel.Text = "ปกติ"
+		end
+	end
+end)
+
+local row = GeneralForm:Row({
+	SearchIndex = "AutoKill"
+})
+
+row:Left():TitleStack({
+	Title = "Auto Kill Zombie op!! 😎",
+	Subtitle = "ออโต้ฆ่าซอมบี้"
+})
+
 row:Right():Toggle({
-    Value = AutoKill,
-    ValueChanged = function(_, value)
-        AutoKill = value
-        if not value then
-            stopFlying()
-            lastTpPos = nil
-            currentTarget = nil
-        end
-    end
+	Value = false,
+
+	ValueChanged = function(_, value)
+		AutoKill = value
+
+		if not value then
+			stopFlying()
+
+			lastTpPos = nil
+			currentTarget = nil
+		end
+	end
+})
+
+local upgradeSection = window:Section({
+	Disclosure = false,
+	Title = "Upgrades"
+})
+
+local upgradeTab = upgradeSection:Tab({
+	Selected = false,
+	Title = "Upgrade",
+	Icon = cascade.Symbols.arrowUpCircle
+})
+
+local upgradeForm = upgradeTab:PageSection({
+	Title = "Auto Upgrade"
+}):Form()
+
+local healthRow = upgradeForm:Row({
+	SearchIndex = "AutoHealth"
+})
+
+healthRow:Left():TitleStack({
+	Title = "Auto Health Upgrade",
+	Subtitle = "ออโต้อัพเกรดเลือด"
+})
+
+healthRow:Right():Toggle({
+	Value = false,
+
+	ValueChanged = function(_, value)
+		AutoUpgradeHealth = value
+	end
+})
+
+local weaponRow = upgradeForm:Row({
+	SearchIndex = "AutoWeapon"
+})
+
+weaponRow:Left():TitleStack({
+	Title = "Auto Weapon Upgrade",
+	Subtitle = "ออโต้เกรดอาวุธ"
+})
+
+weaponRow:Right():Toggle({
+	Value = false,
+
+	ValueChanged = function(_, value)
+		AutoUpgradeWeapon = value
+	end
 })

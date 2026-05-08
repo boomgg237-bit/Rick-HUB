@@ -458,36 +458,49 @@ end)
 -- rej
 
 
-local targetWave = 10
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+
+
+local targetWave = 20
 local autoReplay = false
-local replayDone = false
+local done = false
 
-task.spawn(function()
-	while task.wait(1) do
-		if not autoReplay or replayDone then
-			continue
-		end
 
-		local gui = player:FindFirstChild("PlayerGui")
-		local main = gui and gui:FindFirstChild("MainGui")
-		local label = main and main:FindFirstChild("WaveLabel")
+local function getCurrentWave()
+	local gui = player:FindFirstChild("PlayerGui")
+	local main = gui and gui:FindFirstChild("MainGui")
+	local label = main and main:FindFirstChild("WaveLabel")
+	
+	if label then
+		local text = label.Text
+		local wave = tonumber(string.match(text, "(%d+)"))
+		return wave
+	end
+	return nil
+end
 
-		if label then
-			local wave = tonumber(string.match(label.Text, "Wave%s+(%d+)"))
 
-			if wave and wave >= targetWave then
-				replayDone = true
-
-				replicatesignal(player.Kill)
-
-				task.wait(1)
-
-				ReplicatedStorage.GameStateRemotes
-					.VotePlayAgain:FireServer(true)
+local function killAndReplay()
+	local character = player.Character
+	if not character then return end
+	local humanoid = character:FindFirstChild("Humanoid")
+	if humanoid then
+		humanoid.Health = 0
+		task.wait(1.5)
+		local remote = ReplicatedStorage:FindFirstChild("GameStateRemotes")
+		if remote then
+			local voteRemote = remote:FindFirstChild("VotePlayAgain")
+			if voteRemote then
+				voteRemote:FireServer(true)
 			end
 		end
 	end
-end)
+end
+
 
 
 
@@ -581,38 +594,49 @@ local GeneralForm = GeneralTab:PageSection({
 }):Form()
 
 
-local replayRow = GeneralForm:Row({
-	SearchIndex = "AutoReplay"
-})
+local replayRow = form:Row({ SearchIndex = "Toggle" })
+
 
 replayRow:Left():TitleStack({
-	Title = "Auto Replay wave",
-	Subtitle = "รีตอนถึงเวฟที่กำหนด"
+	Title = "Target Wave to Replay",
+	Subtitle = "ตั้งเวฟที่ต้องการจะเริ่มใหม่"
 })
 
 replayRow:Right():TextField({
-	Value = "10",
-	ValueChanged = function(_, value)
-		targetWave = tonumber(value) or 10
+	Value = "20",
+	ValueChanged = function(_, v)
+		targetWave = tonumber(v) or 20
 	end
 })
 
-local replayToggleRow = GeneralForm:Row({
-	SearchIndex = "ReplayToggle"
+
+replayRow:Left():TitleStack({
+	Title = "Auto Replay ",
+	Subtitle = "เมื่อถึงเวฟจะตายแล้วรี"
 })
 
-replayToggleRow:Left():TitleStack({
-	Title = "Enable Replay Wave",
-	Subtitle = ""
-})
-
-replayToggleRow:Right():Toggle({
+replayRow:Right():Toggle({
 	Value = false,
-	ValueChanged = function(_, value)
-		autoReplay = value
-		replayDone = false
+	ValueChanged = function(_, v)
+		autoReplay = v
+		done = false
 	end
 })
+
+task.spawn(function()
+	while task.wait(1) do
+		if not autoReplay then
+			continue
+		end		
+		local wave = getCurrentWave()
+		if wave and wave >= targetWave and not done then
+			done = true
+			killAndReplay()
+			task.wait(5)
+			done = false
+		end
+	end
+end)
 
 
 local upgradeSection = window:Section({
@@ -627,7 +651,7 @@ local upgradeTab = upgradeSection:Tab({
 })
 
 local upgradeForm = upgradeTab:PageSection({
-	Title = "Auto Upgrade"
+	Title = "Upgrade"
 }):Form()
 
 local healthRow = upgradeForm:Row({

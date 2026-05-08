@@ -594,7 +594,7 @@ local GeneralForm = GeneralTab:PageSection({
 }):Form()
 
 
-local replayRow = form:Row({ SearchIndex = "Toggle" })
+local replayRow = GeneralForm:Row({ SearchIndex = "Toggle" })
 
 
 replayRow:Left():TitleStack({
